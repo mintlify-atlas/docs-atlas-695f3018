@@ -143,6 +143,10 @@ The badge text is formatted as `#1`, `#2`, `#3`, etc., derived from the template
   Because position is determined by array index rather than a dedicated sort column, reordering the table by victories (descending) is the recommended way to view standings in their canonical order. The server returns the array pre-sorted by victories, so the default view already reflects the true ranking.
 </Tip>
 
+## Component Architecture
+
+`RankingComponent` is declared as `standalone: true` and directly imports `CommonModule`, `MatTableModule`, `MatSortModule`, and the shared `BadgeComponent`. It is not registered in any NgModule and is loaded as a standalone route component.
+
 ## Client-Side Sorting
 
 The table uses Angular Material's `MatSort` directive, wired via `@ViewChild(MatSort)`:

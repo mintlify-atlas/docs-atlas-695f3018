@@ -1,5 +1,5 @@
 ---
-title: "Galactic Tournament Shared Components Reference"
+title: "Galactic Tournament UI & Shared Components Reference"
 sidebarTitle: "Components"
 description: "Catalogue of every reusable Angular component: layout shell pieces, UI primitives, form controls, chart wrappers, and the SafeHtmlPipe utility pipe."
 ---
@@ -136,7 +136,19 @@ Primitive building blocks used throughout feature modules and pages.
 
     **Path:** `shared/components/ui/button/`
 
-    Styled button primitive. Wraps a native `<button>` element with design-system classes, supporting multiple visual variants and sizes consistent with the rest of the UI component library.
+    Styled button primitive wrapping a native `<button>` element with design-system classes.
+
+    ```typescript
+    @Input()  size:      'sm' | 'md'           = 'md';
+    @Input()  variant:  'primary' | 'outline'  = 'primary';
+    @Input()  disabled: boolean                = false;
+    @Input()  className: string                = '';
+    @Input()  startIcon?: string; // SVG or HTML string
+    @Input()  endIcon?:   string; // SVG or HTML string
+    @Output() btnClick = new EventEmitter<Event>();
+    ```
+
+    The `primary` variant renders a filled brand-coloured button; `outline` renders a white/gray outlined button. When `disabled` is `true`, the `btnClick` event is suppressed and an `opacity-50 cursor-not-allowed` style is applied.
   </Card>
 
   <Card title="DropdownComponent" icon="chevrons-up-down">
@@ -144,7 +156,13 @@ Primitive building blocks used throughout feature modules and pages.
 
     **Path:** `shared/components/ui/dropdown/`
 
-    Generic dropdown wrapper. Pair it with `app-dropdown-item` children to build context menus, action menus, or select-like interactions. Manages open/closed state internally.
+    Generic dropdown wrapper controlled externally via `@Input() isOpen`. Emits a `close` event when a click outside the dropdown panel is detected, allowing the parent to update its state. Pair it with `app-dropdown-item` children to build context menus or action menus.
+
+    ```typescript
+    @Input()  isOpen:    boolean = false;
+    @Input()  className: string  = '';
+    @Output() close = new EventEmitter<void>();
+    ```
   </Card>
 
   <Card title="AvatarComponent / AvatarTextComponent" icon="user-circle">
@@ -210,19 +228,19 @@ Reusable form controls live in `shared/components/form/`. Each wraps a native HT
 
 ## Chart Components
 
-Chart wrappers live in `shared/components/charts/` and integrate the `ng-apexcharts` library. They accept pre-built ApexCharts configuration objects as inputs and pass them directly to the underlying `apx-chart` element.
+Chart components live in `shared/components/charts/` and integrate the `ng-apexcharts` library. Both components encapsulate their own ApexCharts configuration and data internally — they expose no `@Input()` properties and are used as self-contained display elements dropped into a page template.
 
 <CardGroup cols={2}>
   <Card title="BarChartOneComponent" icon="chart-bar">
     **Path:** `shared/components/charts/bar/bar-chart-one/`
 
-    Wraps an ApexCharts bar chart. Used on the dashboard overview and battle statistics pages to visualise comparative species data.
+    Renders a vertical bar chart using `ng-apexcharts`. Internally configures series, axes, colours, and tooltip formatting. Embed with `<app-bar-chart-one>` — no inputs required.
   </Card>
 
   <Card title="LineChartOneComponent" icon="chart-line">
     **Path:** `shared/components/charts/line/line-chart-one/`
 
-    Wraps an ApexCharts line chart. Suitable for time-series data such as battle activity over a date range.
+    Renders a multi-series line chart using `ng-apexcharts`. Internally configures series, stroke, fill, and grid settings. Embed with `<app-line-chart-one>` — no inputs required.
   </Card>
 </CardGroup>
 

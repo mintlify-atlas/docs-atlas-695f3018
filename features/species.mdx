@@ -153,6 +153,18 @@ All fields are marked as touched on submission so inline error messages appear b
   The form uses Angular Reactive Forms (`FormGroup` + `Validators`). The `powerLevel` value is cast to a number with the unary `+` operator before being sent to the API to avoid string payloads.
 </Tip>
 
+## Toast Notifications
+
+All form outcomes are surfaced through `AlertService`:
+
+| Event | Message |
+|-------|---------|
+| Create success | `"Especie creada exitosamente"` |
+| Update success | `"Especie actualizada exitosamente"` |
+| Create error | `"Error al crear especie"` |
+| Update error | `"Error al actualizar especie"` |
+| Load (edit) error | `"Error al cargar especie"` |
+
 ## Loading & Error States
 
 | State | Behaviour |

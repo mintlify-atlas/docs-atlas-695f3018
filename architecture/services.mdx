@@ -1,7 +1,7 @@
 ---
 title: "Galactic Tournament Services & Data Layer Reference"
 sidebarTitle: "Services"
-description: "Full reference for every injectable Angular service: HTTP data services for species, battles, and statistics, plus shared UI services for alerts, theme, sidebar, and modals."
+description: "Reference for all Angular services: HTTP services for species, battles, and statistics, plus UI services for alerts, themes, sidebar state, and modals."
 ---
 
 Galactic Tournament's business logic and cross-cutting concerns are all handled by Angular injectable services. HTTP-based services read the `environment.api_url` variable, which resolves to `https://galactic-tournament-app-production.up.railway.app` in the production build. All services are provided in the root injector (`providedIn: 'root'`), so a single instance is shared across the whole application.

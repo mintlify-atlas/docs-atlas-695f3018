@@ -109,7 +109,7 @@ Changing `api_url` in an environment file automatically redirects all API traffi
     ```bash
     pnpm start
     ```
-    Runs `ng serve` without a `--configuration` flag. The `serve` target defaults to `development`, but if invoked as plain `ng serve` (which uses the base options without fileReplacements overrides), the unmodified `environment.ts` is used — pointing at the live Railway backend. Useful for testing the real API locally without a running local server.
+    Runs `ng serve --configuration production`. Angular replaces `environment.ts` with `environment.prod.ts`, so all API calls go to the live Railway backend at `https://galactic-tournament-app-production.up.railway.app`. Useful for running the SPA locally against the real production API without a local backend server.
   </Tab>
   <Tab title="Production build">
     ```bash
