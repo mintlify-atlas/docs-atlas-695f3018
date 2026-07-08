@@ -1,47 +1,114 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Quickstart: Run Galactic Tournament Locally"
+sidebarTitle: "Quickstart"
+description: "Install dependencies, configure the API URL, and launch the Galactic Tournament Angular dev server on your machine in under five minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+This guide walks you through cloning the repository, installing dependencies, pointing the app at your backend, and starting the Angular development server. From a fresh machine to a running dashboard takes less than five minutes.
 
 ## Prerequisites
 
-Before you begin, you must have:
+Before you begin, make sure the following tools are available on your system:
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
+- **Node.js 20 or later** — [nodejs.org](https://nodejs.org)
+- **pnpm** (recommended) or **npm** — pnpm is the package manager used by the project's lockfile. Install it with `npm install -g pnpm` if needed.
+- **Angular CLI** (optional) — enables standalone `ng` commands: `npm install -g @angular/cli`
 
-## Get started
+## Setup
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Clone the repository">
+    Download the source code and move into the project directory.
 
     ```bash
-    npm install your-package
+    git clone <repository-url>
+    cd angular-dashboard
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
 
-    ```bash
-    your-cli init
-    ```
+  <Step title="Install dependencies">
+    Install all Node dependencies. pnpm is recommended because the project ships a `pnpm-lock.yaml` lockfile, which guarantees reproducible installs.
+
+    <CodeGroup>
+      ```bash pnpm
+      pnpm install
+      ```
+      ```bash npm
+      npm install
+      ```
+    </CodeGroup>
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
 
-    ```bash
-    your-cli start
+  <Step title="Configure the API URL">
+    The development server reads its API base URL from `src/app/environments/environment.development.ts`. Open the file and set `api_url` to wherever your backend is running.
+
+    ```ts src/app/environments/environment.development.ts
+    export const environment = {
+        production: false,
+        api_url: 'http://localhost:8080',
+    };
     ```
+
+    Change `http://localhost:8080` to match your backend's address if it runs on a different host or port. For reference, the production environment file looks like this:
+
+    ```ts src/app/environments/environment.prod.ts
+    export const environment = {
+        production: true,
+        api_url: 'https://galactic-tournament-app-production.up.railway.app',
+    };
+    ```
+
+    <Note>
+      Angular bakes environment values into the compiled bundle at build time. If you update this file after a build, you must restart the dev server or rebuild for the change to take effect.
+    </Note>
+  </Step>
+
+  <Step title="Start the development server">
+    Launch the Angular dev server using the `dev` script, which activates the `development` configuration and hot-reloading.
+
+    <CodeGroup>
+      ```bash pnpm
+      pnpm run dev
+      ```
+      ```bash npm
+      npm run dev
+      ```
+      ```bash Angular CLI
+      ng serve --configuration development
+      ```
+    </CodeGroup>
+
+    <Tip>
+      If port `4200` is already in use on your machine, pass a custom port flag:
+      ```bash
+      ng serve --port 4201
+      ```
+    </Tip>
+  </Step>
+
+  <Step title="Open the dashboard">
+    Once the compiler finishes (look for `✔ Browser application bundle generation complete`), open your browser to:
+
+    ```
+    http://localhost:4200
+    ```
+
+    You should see the Galactic Tournament Overview dashboard. Navigate to `/species`, `/battles`, or `/battle-statistics` using the sidebar.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Available scripts
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+All scripts are defined in `package.json` and invoked with `pnpm run <script>` or `npm run <script>`.
+
+| Script | Command | Description |
+|---|---|---|
+| `dev` | `ng serve --configuration development` | Starts the dev server with development environment (hot-reload enabled) |
+| `start` | `ng serve --configuration production` | Starts the dev server using the production environment file |
+| `build` | `ng build` | Compiles a production bundle into `dist/ng-tailadmin/browser` |
+| `test` | `ng test` | Runs unit tests via Karma and Jasmine |
+| `watch` | `ng build --watch --configuration development` | Continuously rebuilds on file changes |
+
+<Warning>
+  The `start` script uses `--configuration production`, which points `api_url` at the live Railway backend. Use `pnpm run dev` for local development against a local backend.
+</Warning>

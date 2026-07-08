@@ -1,0 +1,410 @@
+---
+title: "REST API Integration Reference — Galactic Tournament"
+sidebarTitle: "API Integration"
+description: "Complete reference for every REST endpoint the Galactic Tournament frontend consumes, including request parameters, response shapes, and curl examples."
+---
+
+Galactic Tournament's Angular frontend communicates exclusively with a single Spring Boot backend over HTTP. Every service uses `environment.api_url` as the base URL, so the correct backend is targeted automatically depending on the active build configuration. This page documents every endpoint the frontend calls, the TypeScript interfaces that model their payloads, and ready-to-run curl examples.
+
+<Note>
+  The production backend is deployed on Railway at `https://galactic-tournament-app-production.up.railway.app`. All example URLs on this page use that base. For local development, substitute `http://localhost:8080`.
+</Note>
+
+## TypeScript Interfaces
+
+The following interfaces are defined in the project's model files and are used as generic type arguments for Angular's `HttpClient` responses throughout the services.
+
+```typescript
+// src/app/modules/species/models/specie.ts
+export interface Specie {
+  id: number;
+  name: string;
+  powerLevel: number;
+  specialAbility: string;
+  createdAt: Date;
+}
+
+// src/app/modules/species/services/species.service.ts
+export interface SpecieRequest {
+  name: string;
+  powerLevel: number;
+  specialAbility: string;
+}
+
+// src/app/modules/battle/models/battle.ts
+export interface BattleRequest {
+  fighterLeftId: number;
+  fighterRightId: number;
+}
+
+export interface BattleResult {
+  id: number;
+  fighterLeft: Specie;
+  fighterRight: Specie;
+  winner: Specie;
+  battleDate: Date;
+}
+
+// src/app/modules/battle-statistics/models/ranking.ts
+export interface RankingResponse {
+  specieId: number;
+  species: Specie;
+  victories: number;
+}
+
+// src/app/shared/models/dashboard.dto.ts
+export interface DashboardDTO {
+  totalSpecies: number;
+  top3Ranking: RankingResponse[];
+  lastBattle: BattleResult;
+}
+
+// src/app/shared/models/page.ts
+export interface Page<T> {
+  content: T[];
+  page: PageInfo;
+}
+
+export interface PageInfo {
+  size: number;
+  number: number;       // 0-based current page index
+  totalElements: number;
+  totalPages: number;
+}
+```
+
+---
+
+## Endpoints
+
+<Tabs>
+  <Tab title="Species">
+
+    ### GET /api/species/all
+
+    Returns the complete, unpaginated list of all species. Used by the battle form to populate fighter dropdowns.
+
+    **`GET {api_url}/api/species/all`**
+
+    _No request parameters._
+
+    **Response — `Specie[]`**
+
+    <ResponseField name="[n].id" type="number" required>
+      Unique identifier for the species.
+    </ResponseField>
+    <ResponseField name="[n].name" type="string" required>
+      Display name of the species (e.g. `"Zorgon"`).
+    </ResponseField>
+    <ResponseField name="[n].powerLevel" type="number" required>
+      Numeric combat power rating used to determine battle outcomes.
+    </ResponseField>
+    <ResponseField name="[n].specialAbility" type="string" required>
+      Text description of the species' unique ability.
+    </ResponseField>
+    <ResponseField name="[n].createdAt" type="Date" required>
+      ISO 8601 timestamp recording when the species was registered.
+    </ResponseField>
+
+    ---
+
+    ### GET /api/species
+
+    Returns a paginated, optionally filtered list of species. Used by the species management table.
+
+    **`GET {api_url}/api/species?page=0&size=10&name=zorg`**
+
+    **Query Parameters**
+
+    <ParamField query="page" type="number" default="0">
+      Zero-based page index.
+    </ParamField>
+    <ParamField query="size" type="number" default="10">
+      Number of records per page.
+    </ParamField>
+    <ParamField query="name" type="string">
+      Optional partial-match filter on the species name. Omit to return all species for the requested page.
+    </ParamField>
+
+    **Response — `Page<Specie>`**
+
+    <ResponseField name="content" type="Specie[]" required>
+      Array of species objects for the current page. Each element has the same shape as the `/api/species/all` response items.
+    </ResponseField>
+    <ResponseField name="page" type="PageInfo" required>
+      <Expandable title="PageInfo fields">
+        <ResponseField name="size" type="number" required>
+          The page size that was requested.
+        </ResponseField>
+        <ResponseField name="number" type="number" required>
+          The current page index (0-based).
+        </ResponseField>
+        <ResponseField name="totalElements" type="number" required>
+          Total number of species matching the current filter across all pages.
+        </ResponseField>
+        <ResponseField name="totalPages" type="number" required>
+          Total number of pages given the current `size`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    ---
+
+    ### GET /api/species/:id
+
+    Fetches a single species by its numeric ID.
+
+    **`GET {api_url}/api/species/{id}`**
+
+    **Path Parameters**
+
+    <ParamField path="id" type="number" required>
+      The unique identifier of the species to retrieve.
+    </ParamField>
+
+    **Response — `Specie`**
+
+    Returns a single `Specie` object. See [GET /api/species/all](#get-apispeciesall) for field descriptions.
+
+    ---
+
+    ### POST /api/species
+
+    Creates a new species entry.
+
+    **`POST {api_url}/api/species`**
+
+    **Request Body — `SpecieRequest`**
+
+    <ParamField body="name" type="string" required>
+      Name of the new species. Must be unique.
+    </ParamField>
+    <ParamField body="powerLevel" type="number" required>
+      Numeric power rating. Higher values give an advantage in battles.
+    </ParamField>
+    <ParamField body="specialAbility" type="string" required>
+      Description of the species' special combat ability.
+    </ParamField>
+
+    **Response — `Specie`**
+
+    Returns the newly created `Specie` object, including the server-assigned `id` and `createdAt` timestamp.
+
+    ---
+
+    ### PUT /api/species/:id
+
+    Updates an existing species by ID. The entire `SpecieRequest` body must be provided (full replacement, not a partial patch).
+
+    **`PUT {api_url}/api/species/{id}`**
+
+    **Path Parameters**
+
+    <ParamField path="id" type="number" required>
+      The unique identifier of the species to update.
+    </ParamField>
+
+    **Request Body — `SpecieRequest`**
+
+    <ParamField body="name" type="string" required>
+      Updated species name.
+    </ParamField>
+    <ParamField body="powerLevel" type="number" required>
+      Updated power level.
+    </ParamField>
+    <ParamField body="specialAbility" type="string" required>
+      Updated special ability description.
+    </ParamField>
+
+    **Response — `Specie`**
+
+    Returns the updated `Specie` object.
+
+  </Tab>
+
+  <Tab title="Battles">
+
+    ### POST /api/battles
+
+    Initiates a battle between two specified species. The backend determines the winner based on their power levels and records the result.
+
+    **`POST {api_url}/api/battles`**
+
+    **Request Body — `BattleRequest`**
+
+    <ParamField body="fighterLeftId" type="number" required>
+      The `id` of the first species (left fighter).
+    </ParamField>
+    <ParamField body="fighterRightId" type="number" required>
+      The `id` of the second species (right fighter). Must differ from `fighterLeftId`.
+    </ParamField>
+
+    **Response — `BattleResult`**
+
+    <ResponseField name="id" type="number" required>
+      Unique identifier of the recorded battle.
+    </ResponseField>
+    <ResponseField name="fighterLeft" type="Specie" required>
+      <Expandable title="Specie fields">
+        <ResponseField name="id" type="number" required>Unique species ID.</ResponseField>
+        <ResponseField name="name" type="string" required>Species name.</ResponseField>
+        <ResponseField name="powerLevel" type="number" required>Power rating.</ResponseField>
+        <ResponseField name="specialAbility" type="string" required>Special ability.</ResponseField>
+        <ResponseField name="createdAt" type="Date" required>Registration timestamp.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="fighterRight" type="Specie" required>
+      Full `Specie` object for the right fighter. Same shape as `fighterLeft`.
+    </ResponseField>
+    <ResponseField name="winner" type="Specie" required>
+      Full `Specie` object for the victorious fighter. Same shape as `fighterLeft`.
+    </ResponseField>
+    <ResponseField name="battleDate" type="Date" required>
+      ISO 8601 timestamp of when the battle was recorded.
+    </ResponseField>
+
+    ---
+
+    ### POST /api/battles/random
+
+    Triggers a battle between two randomly selected species. No body fields are required — send an empty JSON object.
+
+    **`POST {api_url}/api/battles/random`**
+
+    **Request Body**
+
+    Send an empty JSON object `{}`. No fields are read by the backend.
+
+    **Response — `BattleResult`**
+
+    Returns a `BattleResult` with the same shape as [POST /api/battles](#post-apibattles). The two fighters are chosen at random by the server.
+
+  </Tab>
+
+  <Tab title="Statistics">
+
+    ### GET /api/battle-statistics/ranking
+
+    Returns all species sorted by their total number of battle victories. Used to populate the leaderboard view.
+
+    **`GET {api_url}/api/battle-statistics/ranking`**
+
+    _No request parameters._
+
+    **Response — `RankingResponse[]`**
+
+    <ResponseField name="[n].specieId" type="number" required>
+      The ID of the ranked species.
+    </ResponseField>
+    <ResponseField name="[n].species" type="Specie" required>
+      <Expandable title="Specie fields">
+        <ResponseField name="id" type="number" required>Unique species ID.</ResponseField>
+        <ResponseField name="name" type="string" required>Species name.</ResponseField>
+        <ResponseField name="powerLevel" type="number" required>Power rating.</ResponseField>
+        <ResponseField name="specialAbility" type="string" required>Special ability.</ResponseField>
+        <ResponseField name="createdAt" type="Date" required>Registration timestamp.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="[n].victories" type="number" required>
+      Total number of battles this species has won.
+    </ResponseField>
+
+  </Tab>
+
+  <Tab title="Dashboard">
+
+    ### GET /api/dashboard
+
+    Returns an aggregated summary used to populate the dashboard landing page: the total species count, the top 3 ranking entries, and the most recent battle result.
+
+    **`GET {api_url}/api/dashboard`**
+
+    _No request parameters._
+
+    **Response — `DashboardDTO`**
+
+    <ResponseField name="totalSpecies" type="number" required>
+      Total number of species currently registered in the system.
+    </ResponseField>
+    <ResponseField name="top3Ranking" type="RankingResponse[]" required>
+      <Expandable title="RankingResponse fields">
+        <ResponseField name="specieId" type="number" required>Species ID.</ResponseField>
+        <ResponseField name="species" type="Specie" required>Full Specie object.</ResponseField>
+        <ResponseField name="victories" type="number" required>Total victories.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="lastBattle" type="BattleResult" required>
+      <Expandable title="BattleResult fields">
+        <ResponseField name="id" type="number" required>Battle ID.</ResponseField>
+        <ResponseField name="fighterLeft" type="Specie" required>Left fighter Specie object.</ResponseField>
+        <ResponseField name="fighterRight" type="Specie" required>Right fighter Specie object.</ResponseField>
+        <ResponseField name="winner" type="Specie" required>Winning Specie object.</ResponseField>
+        <ResponseField name="battleDate" type="Date" required>ISO 8601 battle timestamp.</ResponseField>
+      </Expandable>
+    </ResponseField>
+
+  </Tab>
+</Tabs>
+
+---
+
+## curl Examples
+
+<CodeGroup>
+
+```bash GET paginated species list
+curl -X GET \
+  "https://galactic-tournament-app-production.up.railway.app/api/species?page=0&size=5" \
+  -H "Accept: application/json"
+```
+
+```bash GET filtered species list
+curl -X GET \
+  "https://galactic-tournament-app-production.up.railway.app/api/species?page=0&size=10&name=zorg" \
+  -H "Accept: application/json"
+```
+
+```bash POST start a battle
+curl -X POST \
+  "https://galactic-tournament-app-production.up.railway.app/api/battles" \
+  -H "Content-Type: application/json" \
+  -d '{"fighterLeftId": 1, "fighterRightId": 2}'
+```
+
+```bash POST random battle
+curl -X POST \
+  "https://galactic-tournament-app-production.up.railway.app/api/battles/random" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+```bash POST create a species
+curl -X POST \
+  "https://galactic-tournament-app-production.up.railway.app/api/species" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Zorgon", "powerLevel": 9500, "specialAbility": "Plasma Rift"}'
+```
+
+```bash GET victory ranking
+curl -X GET \
+  "https://galactic-tournament-app-production.up.railway.app/api/battle-statistics/ranking" \
+  -H "Accept: application/json"
+```
+
+</CodeGroup>
+
+---
+
+## Endpoint Summary
+
+| Method | Path | Service | Description |
+|---|---|---|---|
+| `GET` | `/api/species/all` | `SpeciesService.getAll()` | All species, unpaginated |
+| `GET` | `/api/species` | `SpeciesService.findAll()` | Paginated + filterable species list |
+| `GET` | `/api/species/:id` | `SpeciesService.findById()` | Single species by ID |
+| `POST` | `/api/species` | `SpeciesService.create()` | Create a new species |
+| `PUT` | `/api/species/:id` | `SpeciesService.update()` | Update an existing species |
+| `POST` | `/api/battles` | `BattleService.start()` | Start a battle between two species |
+| `POST` | `/api/battles/random` | `BattleService.randomBattle()` | Start a battle with random fighters |
+| `GET` | `/api/battle-statistics/ranking` | `BattleStatisticsService.getRanking()` | Victory leaderboard |
+| `GET` | `/api/dashboard` | `DashboardService.getDashboard()` | Aggregated dashboard summary |

@@ -1,0 +1,50 @@
+---
+title: "Galactic Tournament — Frontend Dashboard Overview"
+sidebarTitle: "Introduction"
+description: "Meet the Galactic Tournament dashboard: an Angular 21 app for managing species, battles, and rankings in an intergalactic competition."
+---
+
+Galactic Tournament is a modern single-page application built to manage every aspect of an intergalactic competition. From registering alien species and simulating battles to tracking victory rankings and reviewing match statistics, the dashboard gives tournament operators a single, cohesive interface for all operational needs. The frontend is authored in **Angular 21**, styled with **Tailwind CSS v4**, and enriched with **Angular Material** components and **ApexCharts** visualisations — all served as a static bundle through Nginx.
+
+## What's inside
+
+The dashboard is divided into four main sections, each accessible from the main navigation.
+
+<CardGroup cols={2}>
+  <Card title="Dashboard" icon="house" href="/features/dashboard">
+    The Overview page. Presents at-a-glance metrics, recent battle activity, and high-level tournament health so operators can monitor the competition in real time.
+  </Card>
+  <Card title="Species" icon="dna" href="/features/species">
+    Full species management — create, edit, and browse competitor species along with their power levels and special abilities.
+  </Card>
+  <Card title="Battles" icon="swords" href="/features/battles">
+    Register and manage battles between species. Supports both manually configured match-ups and randomly generated encounters.
+  </Card>
+  <Card title="Rankings" icon="trophy" href="/features/ranking">
+    Victory rankings ordered by win count. See which species dominate the tournament leaderboard at any point in time.
+  </Card>
+</CardGroup>
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Angular 21 |
+| Styling | Tailwind CSS v4 |
+| UI components | Angular Material |
+| Charts | ApexCharts via ng-apexcharts |
+| Reactive state | RxJS 7 |
+| Runtime container | Nginx 1.27 (Alpine) |
+| Package manager | pnpm (npm also supported) |
+
+## Backend API
+
+The frontend communicates with a REST backend at build time via environment files. The production API base URL is:
+
+```
+https://galactic-tournament-app-production.up.railway.app
+```
+
+<Note>
+  A running backend is required for all data-fetching features (species, battles, and rankings) to work. If you are running the frontend locally against a local backend, ensure the dev environment file points to `http://localhost:8080`. See the [Quickstart](/quickstart) for details.
+</Note>

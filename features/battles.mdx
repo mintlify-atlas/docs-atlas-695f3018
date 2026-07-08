@@ -1,0 +1,173 @@
+---
+title: "Galactic Battle Arena — Manual & Random Combat"
+sidebarTitle: "Battles"
+description: "Run manual or random battles between intergalactic species, view live winner highlights, and reset the arena — all from the Battles page."
+---
+
+The Battles page, accessible at `/battles`, is the combat engine of the Galactic Tournament. It supports two distinct modes: a **manual battle** where you hand-pick both fighters from live search dropdowns, and a **random battle** where the server selects the combatants entirely at random. In both cases the result is displayed inline with the winner clearly highlighted, and toast notifications confirm success or surface errors via `AlertService`.
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/species?page=0&size=10&name=<search>` | Search species by name to populate fighter dropdowns. |
+| `POST` | `/api/battles` | Start a manual battle between two chosen species. |
+| `POST` | `/api/battles/random` | Start a random battle; the server selects both fighters. |
+
+**Base URL:** `https://galactic-tournament-app-production.up.railway.app`
+
+## Data Models
+
+```typescript
+export interface BattleRequest {
+  fighterLeftId: number;
+  fighterRightId: number;
+}
+
+export interface BattleResult {
+  id: number;
+  fighterLeft: Specie;
+  fighterRight: Specie;
+  winner: Specie;
+  battleDate: Date;
+}
+```
+
+### BattleRequest Fields
+
+<ParamField body="fighterLeftId" type="number" required>
+  The `id` of the species assigned to the left position in the arena.
+</ParamField>
+
+<ParamField body="fighterRightId" type="number" required>
+  The `id` of the species assigned to the right position in the arena. Must be different from `fighterLeftId`.
+</ParamField>
+
+### BattleResult Fields
+
+<ResponseField name="id" type="number" required>
+  Unique identifier of the battle record.
+</ResponseField>
+
+<ResponseField name="fighterLeft" type="Specie" required>
+  Full species object for the left-side fighter.
+
+  <Expandable title="Specie fields">
+    <ResponseField name="id" type="number" required>Unique species identifier.</ResponseField>
+    <ResponseField name="name" type="string" required>Display name of the species.</ResponseField>
+    <ResponseField name="powerLevel" type="number" required>Numeric combat power.</ResponseField>
+    <ResponseField name="specialAbility" type="string" required>Description of the species' unique ability.</ResponseField>
+    <ResponseField name="createdAt" type="Date" required>ISO timestamp of when the species was registered.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="fighterRight" type="Specie" required>
+  Full species object for the right-side fighter. Same shape as `fighterLeft`.
+</ResponseField>
+
+<ResponseField name="winner" type="Specie" required>
+  Full species object for the victor. The component compares `winner.id` with `fighterLeft.id` and `fighterRight.id` to apply visual highlighting.
+</ResponseField>
+
+<ResponseField name="battleDate" type="Date" required>
+  ISO timestamp of when the battle was executed.
+</ResponseField>
+
+## Fighter Search Dropdowns
+
+Both the left and right fighter panels use live search powered by `SpeciesService.findAll`. As you type, the component fires a request to:
+
+```
+GET /api/species?page=0&size=10&name=<search_term>
+```
+
+Results appear in a dropdown list beneath the input. Each entry shows the species name and power level. Selecting a species closes the dropdown and populates the fighter card.
+
+<Info>
+  The left dropdown automatically excludes the species already selected as the right fighter, and vice versa. This prevents the same species from fighting itself.
+</Info>
+
+Clicking the **×** clear button next to a filled input via `clearLeft()` / `clearRight()` removes the selection and resets the current result. Dropdowns also close when you click anywhere outside their container thanks to a `@HostListener('document:click')` handler.
+
+## Manual Battle
+
+To start a manual battle both fighter slots must be filled. The orange **⚔️ Iniciar Combate!** button is disabled (`canFight = false`) until both fighters are selected and no fight is already in progress.
+
+Clicking **Fight** calls `BattleService.start`:
+
+```typescript
+start(request: BattleRequest): Observable<BattleResult> {
+  return this.http.post<BattleResult>(`${this.url}`, request);
+}
+```
+
+The request body is:
+
+```json
+{
+  "fighterLeftId": 7,
+  "fighterRightId": 11
+}
+```
+
+On success the `BattleResult` is stored in `result` and a success toast announces the winner's name. While the request is in-flight the button label changes to **Combatiendo...** and a spinner is shown.
+
+## Random Battle
+
+Clicking the purple **🎲 Combate Aleatorio** button first opens a confirmation dialog asking "Se generará un combate entre dos especies aleatorias. ¿Deseas continuar?". Confirming calls `BattleService.randomBattle`:
+
+```typescript
+randomBattle(): Observable<BattleResult> {
+  return this.http.post<BattleResult>(`${this.url}/random`, {});
+}
+```
+
+The server selects both fighters. When the response arrives the component automatically populates both fighter cards using `selectFighterLeft(res.fighterLeft)` and `selectFighterRight(res.fighterRight)`, then stores the result exactly as in a manual battle.
+
+<Note>
+  The random battle button is disabled while any battle is currently in progress (`fighting = true`) to prevent concurrent requests.
+</Note>
+
+## Winner Highlighting
+
+After a `BattleResult` is returned, `isWinner(specie)` evaluates `result.winner.id === specie.id`. The winning fighter card receives:
+
+- A gold border (`border-yellow-400`)
+- A yellow background tint (`bg-yellow-50`)
+- A 🏆 **GANADOR** badge
+
+The losing fighter card displays a grey **Derrotado** badge.
+
+A result banner also appears below the arena with the winner's name, power level, and special ability rendered as a gradient highlight.
+
+## Reset
+
+After a battle resolves a **Nuevo combate** link appears beneath the arena. Clicking it calls `resetBattle()`, which clears both fighter selections, both search inputs, and the stored result:
+
+```typescript
+resetBattle(): void {
+  this.fighterLeft = null;
+  this.leftSearch = '';
+  this.fighterRight = null;
+  this.rightSearch = '';
+  this.result = null;
+  this.error = null;
+}
+```
+
+This returns the arena to its initial empty state, ready for the next fight.
+
+## Toast Notifications
+
+All outcomes are surfaced through `AlertService`:
+
+| Event | Message |
+|-------|---------|
+| Manual battle success | `"Batalla realizada! Ganador: {winner.name}"` |
+| Manual battle error | `"Error al realizar la batalla"` |
+| Random battle success | `"Batalla aleatoria realizada! Ganador: {winner.name}"` |
+| Random battle error | `"Error al generar la batalla aleatoria"` |
+
+<Tip>
+  Toast alerts are ephemeral and disappear automatically. If you need to review the last outcome after the toast has gone, the result banner and winner highlighting remain visible in the arena until you click **Nuevo combate**.
+</Tip>

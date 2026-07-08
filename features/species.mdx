@@ -1,0 +1,162 @@
+---
+title: "Intergalactic Species — Management & Registration"
+sidebarTitle: "Species"
+description: "Manage intergalactic species: browse a paginated table, create new entries via a modal form, and edit existing ones with a built-in confirmation dialog."
+---
+
+The Species page, accessible at `/species`, is the primary catalogue management screen in the Galactic Tournament application. It combines a server-paginated Angular Material table with a modal form that handles both creation and editing workflows. All mutations go through `SpeciesService`, which wraps the `/api/species` REST resource, and results are communicated back to the user through `AlertService` toast notifications.
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/species?page=0&size=10` | Fetch a paginated page of species. Optionally filter by `name`. |
+| `GET` | `/api/species/{id}` | Fetch a single species by ID (used to pre-populate the edit form). |
+| `POST` | `/api/species` | Create a new species. |
+| `PUT` | `/api/species/{id}` | Update an existing species. |
+
+**Base URL:** `https://galactic-tournament-app-production.up.railway.app`
+
+## Data Models
+
+```typescript
+export interface Specie {
+  id: number;
+  name: string;
+  powerLevel: number;
+  specialAbility: string;
+  createdAt: Date;
+}
+
+export interface SpecieRequest {
+  name: string;
+  powerLevel: number;
+  specialAbility: string;
+}
+```
+
+### SpecieRequest Fields
+
+<ParamField body="name" type="string" required>
+  The display name of the species. Must be non-empty and no longer than **100 characters**.
+</ParamField>
+
+<ParamField body="powerLevel" type="number" required>
+  A positive integer representing the species' combat power. Must be at least **1** and must be a whole number (no decimals). Used by the battle engine to determine fight outcomes.
+</ParamField>
+
+<ParamField body="specialAbility" type="string" required>
+  A short description of the species' unique combat ability. Must be non-empty and no longer than **200 characters**.
+</ParamField>
+
+## Paginated Table
+
+The table is rendered with `MatTable` and `MatSort` from Angular Material. The component declares the following column set:
+
+```typescript
+displayedColumns: string[] = ['name', 'powerLevel', 'specialAbility', 'createdAt', 'actions'];
+```
+
+| Column | Description |
+|--------|-------------|
+| **name** | Species name; sortable via `mat-sort-header`. |
+| **powerLevel** | Numeric power level; sortable. |
+| **specialAbility** | Free-text ability description; sortable. |
+| **createdAt** | Creation date, formatted `dd/MM/yyyy`; sortable. |
+| **actions** | Edit icon button that opens the pre-populated form modal. |
+
+The data source is a `MatTableDataSource<Specie>` bound to `@ViewChild('tbSort') tbSort`, which enables client-side sorting on top of server-side pagination.
+
+### Filtering by Name
+
+The `SpeciesService.findAll` method accepts an optional `name` query parameter:
+
+```typescript
+findAll(page: number = 0, size: number = 10, name?: string): Observable<Page<Specie>> {
+  let params = `?page=${page}&size=${size}`;
+  if (name) {
+    params += `&name=${name}`;
+  }
+  return this.http.get<Page<Specie>>(`${this.url}${params}`);
+}
+```
+
+<Info>
+  Name-based filtering is used by the battle page fighter search, but the species listing page does not expose a search input of its own — it loads all species for the current page without a name filter.
+</Info>
+
+### Pagination
+
+Pagination is controlled server-side using Spring Data's `Page` envelope:
+
+```typescript
+export interface PageInfo {
+  size: number;
+  number: number;      // current page (0-based on server, 1-based in UI)
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface Page<T> {
+  content: T[];
+  page: PageInfo;
+}
+```
+
+The component maintains `currentPage` (1-based) and `totalPages` and calls `goToPage(page)` when the user clicks a page button or the Previous / Next controls:
+
+```typescript
+pageSize = 10;
+currentPage = 1;
+totalPages = 1;
+
+goToPage(page: number): void {
+  if (page < 1 || page > this.totalPages) return;
+  this.currentPage = page;
+  this.loadSpecies();
+}
+```
+
+The server receives a 0-based index via `this.speciesService.findAll(this.currentPage - 1, this.pageSize)`.
+
+<Note>
+  After a successful create or update operation the component resets to page 1 (`currentPage = 1`) before reloading the list so the newly saved record is immediately visible.
+</Note>
+
+## Species Form Modal
+
+Clicking **Nueva Especie** opens the `SpeciesFormComponent` modal in **create** mode. Clicking the edit icon on any row opens it in **edit** mode with the selected species' ID passed via `@Input() speciesId`.
+
+### Create Mode
+
+The form initialises with empty fields. On submit, the payload is sent to `POST /api/species`. A success toast ("Especie creada exitosamente") is shown and the modal closes; on error, an error toast is displayed.
+
+### Edit Mode
+
+When `speciesId` is set, the form calls `GET /api/species/{id}` via `SpeciesService.findById` to populate the fields. A spinner is shown during this fetch. Submitting in edit mode does **not** immediately call the API — instead it opens a confirmation dialog.
+
+#### Confirmation Dialog
+
+The `<app-confirm>` dialog asks the user to confirm before saving changes. Only after clicking **Guardar** in that dialog does the component call `PUT /api/species/{id}`. Cancelling the dialog returns the user to the open form without discarding their edits.
+
+### Validation Rules
+
+| Field | Rules |
+|-------|-------|
+| `name` | Required · Max 100 characters |
+| `powerLevel` | Required · Minimum value 1 · Must match `/^\d+$/` (positive integer) |
+| `specialAbility` | Required · Max 200 characters |
+
+All fields are marked as touched on submission so inline error messages appear beneath each invalid control immediately.
+
+<Tip>
+  The form uses Angular Reactive Forms (`FormGroup` + `Validators`). The `powerLevel` value is cast to a number with the unary `+` operator before being sent to the API to avoid string payloads.
+</Tip>
+
+## Loading & Error States
+
+| State | Behaviour |
+|-------|-----------|
+| `loading = true` | A "Cargando especies..." placeholder row spans the full table width. |
+| `error` is set | A red error row appears spanning the full table width. |
+| Empty data | A "No hay especies registradas." message is rendered below the table. |

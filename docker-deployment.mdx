@@ -1,0 +1,209 @@
+---
+title: "Docker Deployment for Galactic Tournament Frontend"
+sidebarTitle: "Docker Deployment"
+description: "Build the Galactic Tournament Angular SPA into a Docker image and serve it with Nginx — including API URL injection and docker-compose setup."
+---
+
+The Galactic Tournament frontend ships with a production-ready multi-stage `Dockerfile`. The build stage compiles the Angular application inside a Node container; the serve stage copies the static output into a lean Nginx image. The final image has no Node.js runtime and is suitable for any container platform.
+
+## How the Dockerfile works
+
+Because Angular bakes environment variables into the JavaScript bundle at compile time, the backend API URL must be injected **before** `ng build` runs — not at container start-up. The Dockerfile accepts a `--build-arg API_URL=...` argument and uses a `sed` command to rewrite `src/app/environments/environment.ts` in-place before executing the build.
+
+```dockerfile
+# ---- Build Stage ----
+FROM node:22-alpine AS builder
+
+# Enable pnpm via corepack
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Build argument for API URL (override at build time with --build-arg)
+ARG API_URL=http://localhost:8080
+
+# Copy manifest files first for better layer caching
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+RUN pnpm install
+
+COPY . .
+
+# Inject API_URL into Angular environment file before build
+RUN sed -i "s|api_url: '.*'|api_url: '${API_URL}'|g" src/app/environments/environment.ts
+
+RUN pnpm run build
+
+# ---- Serve Stage ----
+FROM nginx:1.27-alpine AS runner
+
+# Remove default nginx static assets
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy built Angular app (outputPath: dist/ng-tailadmin/browser)
+COPY --from=builder /app/dist/ng-tailadmin/browser /usr/share/nginx/html
+
+# Set permissions and ownership
+RUN chown -R nginx:nginx /usr/share/nginx/html && chmod -R 755 /usr/share/nginx/html
+
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+<Note>
+  The default `API_URL` build arg is `http://localhost:8080`. Always pass an explicit `--build-arg API_URL=...` when building an image intended for staging or production deployments.
+</Note>
+
+## Build and run
+
+<Steps>
+  <Step title="Build the Docker image">
+    From the repository root, run one of the following commands.
+
+    <Tabs>
+      <Tab title="Default (localhost backend)">
+        Builds using the fallback `API_URL=http://localhost:8080` embedded in the Dockerfile:
+
+        ```bash
+        docker build -t galactic-tournament-front .
+        ```
+      </Tab>
+      <Tab title="Custom API URL (recommended)">
+        Injects your backend address at build time — required for any non-local deployment:
+
+        ```bash
+        docker build \
+          --build-arg API_URL=https://galactic-tournament-app-production.up.railway.app \
+          -t galactic-tournament-front .
+        ```
+      </Tab>
+    </Tabs>
+
+    The build process installs dependencies via pnpm, rewrites the environment file, and compiles the Angular bundle. Expect the first build to take 2–4 minutes; subsequent builds are faster thanks to Docker layer caching on the `pnpm install` step.
+  </Step>
+
+  <Step title="Run the container">
+    Start a detached container that maps Nginx's port 80 to your host's port 4200:
+
+    ```bash
+    docker run -d -p 4200:80 --name galactic-app galactic-tournament-front
+    ```
+
+    You can verify the container is running with:
+
+    ```bash
+    docker ps
+    ```
+
+    To tail the Nginx access and error logs in real time:
+
+    ```bash
+    docker logs -f galactic-app
+    ```
+  </Step>
+
+  <Step title="Verify the deployment">
+    Open your browser to `http://localhost:4200`. The Galactic Tournament Overview dashboard should load and API calls should reach the URL you injected at build time.
+
+    To confirm the Angular output was copied correctly, you can inspect the container's file system:
+
+    ```bash
+    docker exec galactic-app ls /usr/share/nginx/html
+    ```
+
+    You should see `index.html` and hashed JS/CSS asset files — the compiled output of `dist/ng-tailadmin/browser`.
+  </Step>
+</Steps>
+
+## Docker Compose
+
+For local development stacks or CI environments, a `docker-compose.yml` file lets you build and run the frontend with a single command.
+
+```yaml docker-compose.yml
+version: '3.8'
+services:
+  web:
+    image: galactic-tournament-front
+    build:
+      context: .
+      args:
+        API_URL: https://galactic-tournament-app-production.up.railway.app
+    ports:
+      - "4200:80"
+    container_name: galactic-app
+```
+
+Build the image and start the service:
+
+```bash
+docker compose up --build
+```
+
+To run in detached mode:
+
+```bash
+docker compose up --build -d
+```
+
+## Useful Docker commands
+
+| Command | Description |
+|---|---|
+| `docker build -t galactic-tournament-front .` | Build the image with the default API URL |
+| `docker build --build-arg API_URL=<url> -t galactic-tournament-front .` | Build with a custom API URL |
+| `docker run -d -p 4200:80 --name galactic-app galactic-tournament-front` | Run the container in detached mode |
+| `docker logs -f galactic-app` | Stream container logs |
+| `docker stop galactic-app` | Stop the running container |
+| `docker ps` | List all running containers |
+| `docker image ls` | List locally available images |
+| `docker rmi galactic-tournament-front` | Remove the local image |
+
+## Common issues
+
+### 403 Forbidden
+
+Nginx returns a `403 Forbidden` error when it cannot read `index.html` due to file permission problems. The Dockerfile already addresses this by running:
+
+```dockerfile
+RUN chown -R nginx:nginx /usr/share/nginx/html && chmod -R 755 /usr/share/nginx/html
+```
+
+If you encounter this error after modifying the Dockerfile, verify those lines are still present and that the `COPY` step precedes them.
+
+### Port already in use
+
+If port `4200` is occupied on your host, map the container to a different port:
+
+```bash
+docker run -d -p 4201:80 --name galactic-app galactic-tournament-front
+```
+
+Then open `http://localhost:4201` in your browser.
+
+### Wrong or missing output path
+
+The Angular build outputs to `dist/ng-tailadmin/browser` (the project name in `package.json` is `ng-tailadmin`). The `COPY` instruction in the serve stage targets this exact path:
+
+```dockerfile
+COPY --from=builder /app/dist/ng-tailadmin/browser /usr/share/nginx/html
+```
+
+<Warning>
+  If you rename the project in `package.json` or change `outputPath` in `angular.json`, you must update the `COPY` path in the Dockerfile accordingly, otherwise the Nginx root directory will be empty and the app will not load.
+</Warning>
+
+### SPA routes returning 404
+
+The custom `nginx.conf` includes an Angular SPA fallback that redirects all unmatched paths to `index.html`:
+
+```nginx
+location / {
+    try_files $uri $uri/ /index.html;
+}
+```
+
+If you replace `nginx.conf` with a different configuration, ensure this `try_files` directive is present. Without it, navigating directly to routes such as `/species` or `/battles` will return a `404 Not Found` from Nginx.

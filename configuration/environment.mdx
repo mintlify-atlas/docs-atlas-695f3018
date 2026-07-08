@@ -1,0 +1,172 @@
+---
+title: "Environment Configuration for Galactic Tournament"
+sidebarTitle: "Environments"
+description: "Learn how Angular environment files control API URLs across development, production, and Docker builds in Galactic Tournament."
+---
+
+Galactic Tournament uses Angular's built-in environment file system to manage configuration values — most importantly the backend API base URL — across different build targets. Understanding how these files work is essential before deploying the app or contributing to it locally.
+
+## How Angular Environment Files Work
+
+Angular supports multiple named build configurations (defined in `angular.json`). Each configuration can declare `fileReplacements` — a list of source files to swap out at build time. The app always imports from `environment.ts`, but the Angular compiler silently replaces that file with the environment-specific version before bundling.
+
+The three environment files live in `src/app/environments/`:
+
+| File | Used when |
+|---|---|
+| `environment.ts` | Default — also the Docker injection target |
+| `environment.development.ts` | `ng serve --configuration development` / `pnpm run dev` |
+| `environment.prod.ts` | `ng build` / `pnpm build` (production configuration) |
+
+The replacements are configured in `angular.json` under `projects > ng-tailadmin > architect > build > configurations`:
+
+```json
+"production": {
+  "fileReplacements": [
+    {
+      "replace": "src/app/environments/environment.ts",
+      "with": "src/app/environments/environment.prod.ts"
+    }
+  ]
+},
+"development": {
+  "fileReplacements": [
+    {
+      "replace": "src/app/environments/environment.ts",
+      "with": "src/app/environments/environment.development.ts"
+    }
+  ]
+}
+```
+
+<Note>
+  The `serve` target's `defaultConfiguration` is `"development"`, and the `build` target's `defaultConfiguration` is `"production"`. Running `pnpm run dev` therefore automatically picks up `environment.development.ts`, while `pnpm build` picks up `environment.prod.ts`.
+</Note>
+
+## The Environment Files
+
+Each environment file exports a single `environment` constant. Services import it directly — for example, `SpeciesService` constructs its base URL as `` `${environment.api_url}/api/species` ``.
+
+<CodeGroup>
+
+```typescript environment.ts (default)
+export const environment = {
+    production: false,
+    api_url: 'https://galactic-tournament-app-production.up.railway.app',
+};
+```
+
+```typescript environment.development.ts
+export const environment = {
+    production: false,
+    api_url: 'http://localhost:8080',
+};
+```
+
+```typescript environment.prod.ts
+export const environment = {
+    production: true,
+    api_url: 'https://galactic-tournament-app-production.up.railway.app',
+};
+```
+
+</CodeGroup>
+
+### The `api_url` Field
+
+`api_url` is the only application-level configuration value in these files. Every HTTP service in the project prepends it to its endpoint path:
+
+```typescript
+// species.service.ts
+private readonly url = `${environment.api_url}/api/species`;
+
+// battle.service.ts
+private readonly url = `${environment.api_url}/api/battles`;
+
+// battle-statistics.service.ts
+private apiUrl = `${environment.api_url}/api/battle-statistics`;
+
+// dashboard.service.ts
+private readonly url = `${environment.api_url}/api/dashboard`;
+```
+
+Changing `api_url` in an environment file automatically redirects all API traffic in that build target — no other files need to be touched.
+
+<Warning>
+  Angular bakes environment values directly into the compiled JavaScript bundle at build time. There is no runtime configuration mechanism — you **cannot** change `api_url` after the bundle has been produced without rebuilding the application.
+</Warning>
+
+## Switching Configurations with pnpm Scripts
+
+<Tabs>
+  <Tab title="Development (local backend)">
+    ```bash
+    pnpm run dev
+    ```
+    Runs `ng serve --configuration development`. Angular replaces `environment.ts` with `environment.development.ts`, so all API calls go to your local backend at `http://localhost:8080`. Source maps are enabled and optimizations are disabled for a faster edit-refresh cycle.
+  </Tab>
+  <Tab title="Default serve (production API)">
+    ```bash
+    pnpm start
+    ```
+    Runs `ng serve` without a `--configuration` flag. The `serve` target defaults to `development`, but if invoked as plain `ng serve` (which uses the base options without fileReplacements overrides), the unmodified `environment.ts` is used — pointing at the live Railway backend. Useful for testing the real API locally without a running local server.
+  </Tab>
+  <Tab title="Production build">
+    ```bash
+    pnpm build
+    ```
+    Runs `ng build`, which defaults to the `production` configuration. Angular replaces `environment.ts` with `environment.prod.ts`. Output is fully optimized, minified, and placed in `dist/ng-tailadmin/browser/`.
+  </Tab>
+</Tabs>
+
+## Docker Build-Time Injection
+
+The `Dockerfile` uses a two-stage build: a Node builder stage compiles the Angular app, and an Nginx runner stage serves the static output. The builder stage exposes an `ARG API_URL` that can be overridden at `docker build` time.
+
+Before running `pnpm run build`, the Dockerfile injects the API URL directly into `environment.ts` using `sed`:
+
+```dockerfile
+# Build argument — defaults to local backend if not provided
+ARG API_URL=http://localhost:8080
+
+# Inject API_URL into the Angular environment file before building
+RUN sed -i "s|api_url: '.*'|api_url: '${API_URL}'|g" src/app/environments/environment.ts
+
+RUN pnpm run build
+```
+
+This replaces whatever string value `api_url` holds with the value of `$API_URL`, then proceeds with the production build. The result is a bundle baked with exactly the URL you specified at image build time.
+
+### Building the Docker Image
+
+<CodeGroup>
+
+```bash Production (Railway backend)
+docker build \
+  --build-arg API_URL=https://galactic-tournament-app-production.up.railway.app \
+  -t galactic-tournament-front:latest .
+```
+
+```bash Staging or custom backend
+docker build \
+  --build-arg API_URL=https://your-staging-backend.example.com \
+  -t galactic-tournament-front:staging .
+```
+
+```bash Local backend (default)
+# No --build-arg needed — Dockerfile default is http://localhost:8080
+docker build -t galactic-tournament-front:local .
+```
+
+</CodeGroup>
+
+<Tip>
+  Because the `sed` command targets the `api_url: '...'` pattern in `environment.ts`, it works regardless of which URL was previously stored there. You can safely re-run the Docker build with a different `API_URL` without editing any source files.
+</Tip>
+
+## Environment Fields Reference
+
+| Field | Type | Description |
+|---|---|---|
+| `production` | `boolean` | `true` only in `environment.prod.ts`. Can gate debug tooling or logging inside the app. |
+| `api_url` | `string` | Base URL for all backend HTTP requests. No trailing slash. |

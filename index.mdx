@@ -1,20 +1,51 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "Galactic Tournament: Intergalactic Battle Dashboard"
+sidebarTitle: "Home"
+description: "Angular dashboard for managing an intergalactic tournament — create species, simulate battles, and track victory rankings in real time."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+Welcome to the **Galactic Tournament** documentation. This Angular 21 frontend gives you a full dashboard to manage species competing in an intergalactic tournament, run battle simulations, and follow live rankings — all backed by a REST API.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="telescope" href="/introduction">
+    Understand what Galactic Tournament is and what the frontend provides
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Clone, install, and run the dashboard locally in under five minutes
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/docker-deployment">
+    Build and serve the production image with a custom API URL
+  </Card>
+  <Card title="Dashboard" icon="chart-mixed" href="/features/dashboard">
+    Overview page with species count, top-3 ranking, and last battle result
+  </Card>
+  <Card title="Species Management" icon="dna" href="/features/species">
+    Create and edit intergalactic species with power levels and abilities
+  </Card>
+  <Card title="Battle Simulation" icon="swords" href="/features/battles">
+    Pit two species against each other or trigger a fully random battle
+  </Card>
+  <Card title="Rankings" icon="trophy" href="/features/ranking">
+    Sortable leaderboard tracking every species' victories
+  </Card>
+  <Card title="API Integration" icon="plug" href="/configuration/api-integration">
+    Configure the backend URL and understand every API contract
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## How it works
+
+<Steps>
+  <Step title="Register your species">
+    Navigate to **Species** and create fighters with a name, power level, and special ability.
+  </Step>
+  <Step title="Run a battle">
+    Go to **Battles**, search for two combatants, and click **Fight** — or use **Random Battle** to let the server choose.
+  </Step>
+  <Step title="Check the ranking">
+    Open **Rankings** to see which species has the most victories across all battles.
+  </Step>
+  <Step title="Monitor the dashboard">
+    The **Dashboard** overview shows your total species count, the top-3 champions, and the most recent battle outcome at a glance.
+  </Step>
+</Steps>

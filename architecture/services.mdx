@@ -1,0 +1,311 @@
+---
+title: "Galactic Tournament Services & Data Layer Reference"
+sidebarTitle: "Services"
+description: "Full reference for every injectable Angular service: HTTP data services for species, battles, and statistics, plus shared UI services for alerts, theme, sidebar, and modals."
+---
+
+Galactic Tournament's business logic and cross-cutting concerns are all handled by Angular injectable services. HTTP-based services read the `environment.api_url` variable, which resolves to `https://galactic-tournament-app-production.up.railway.app` in the production build. All services are provided in the root injector (`providedIn: 'root'`), so a single instance is shared across the whole application.
+
+## Shared Data Model — `Page<T>`
+
+Paginated endpoints return a standard envelope type defined in `src/app/shared/models/page.ts`. Every service that calls a paginated endpoint uses this generic interface.
+
+```typescript
+export interface PageInfo {
+  size: number;
+  number: number;       // 0-based current page index
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface Page<T> {
+  content: T[];
+  page: PageInfo;
+}
+```
+
+---
+
+<Tabs>
+  <Tab title="HTTP Services">
+
+    HTTP services inject `HttpClient` and build their base URL by prepending `environment.api_url` to their respective API path segment. They return strongly-typed `Observable` streams that components subscribe to directly.
+
+    ### SpeciesService
+
+    **Base URL:** `${environment.api_url}/api/species`
+
+    Manages the full CRUD lifecycle for galactic species.
+
+    ```typescript
+    @Injectable({ providedIn: 'root' })
+    export class SpeciesService {
+      private readonly url = `${environment.api_url}/api/species`;
+
+      constructor(private http: HttpClient) {}
+
+      /** Retrieve every species as a flat array (no pagination). */
+      getAll(): Observable<Specie[]> {
+        return this.http.get<Specie[]>(`${this.url}/all`);
+      }
+
+      /** Retrieve a paginated, optionally filtered list of species. */
+      findAll(
+        page: number = 0,
+        size: number = 10,
+        name?: string
+      ): Observable<Page<Specie>> {
+        let params = `?page=${page}&size=${size}`;
+        if (name) { params += `&name=${name}`; }
+        return this.http.get<Page<Specie>>(`${this.url}${params}`);
+      }
+
+      /** Retrieve a single species by its numeric ID. */
+      findById(id: number): Observable<Specie> {
+        return this.http.get<Specie>(`${this.url}/${id}`);
+      }
+
+      /** Create a new species record. */
+      create(data: SpecieRequest): Observable<Specie> {
+        return this.http.post<Specie>(this.url, data);
+      }
+
+      /** Update an existing species record. */
+      update(id: number, data: SpecieRequest): Observable<Specie> {
+        return this.http.put<Specie>(`${this.url}/${id}`, data);
+      }
+    }
+
+    export interface SpecieRequest {
+      name: string;
+      powerLevel: number;
+      specialAbility: string;
+    }
+    ```
+
+    | Method | HTTP | Endpoint |
+    |---|---|---|
+    | `getAll()` | GET | `/api/species/all` |
+    | `findAll(page, size, name?)` | GET | `/api/species?page=&size=&name=` |
+    | `findById(id)` | GET | `/api/species/:id` |
+    | `create(data)` | POST | `/api/species` |
+    | `update(id, data)` | PUT | `/api/species/:id` |
+
+    ---
+
+    ### BattleService
+
+    **Base URL:** `${environment.api_url}/api/battles`
+
+    Triggers and resolves battle simulations between two species.
+
+    ```typescript
+    @Injectable({ providedIn: 'root' })
+    export class BattleService {
+      private readonly url = `${environment.api_url}/api/battles`;
+
+      constructor(private http: HttpClient) {}
+
+      /** Start a battle with an explicit pair of species. */
+      start(request: BattleRequest): Observable<BattleResult> {
+        return this.http.post<BattleResult>(`${this.url}`, request);
+      }
+
+      /** Start a battle with a randomly selected pair of species. */
+      randomBattle(): Observable<BattleResult> {
+        return this.http.post<BattleResult>(`${this.url}/random`, {});
+      }
+    }
+    ```
+
+    | Method | HTTP | Endpoint |
+    |---|---|---|
+    | `start(request)` | POST | `/api/battles` |
+    | `randomBattle()` | POST | `/api/battles/random` |
+
+    ---
+
+    ### BattleStatisticsService
+
+    **Base URL:** `${environment.api_url}/api/battle-statistics`
+
+    Fetches aggregated battle outcomes used to build the species leaderboard.
+
+    ```typescript
+    @Injectable({ providedIn: 'root' })
+    export class BattleStatisticsService {
+      private apiUrl = `${environment.api_url}/api/battle-statistics`;
+
+      constructor(private http: HttpClient) {}
+
+      /** Retrieve the ranked list of species by battle performance. */
+      getRanking(): Observable<any[]> {
+        return this.http.get<any[]>(`${this.apiUrl}/ranking`);
+      }
+    }
+    ```
+
+    | Method | HTTP | Endpoint |
+    |---|---|---|
+    | `getRanking()` | GET | `/api/battle-statistics/ranking` |
+
+    ---
+
+    ### DashboardService
+
+    **Base URL:** `${environment.api_url}/api/dashboard`
+
+    Loads the aggregate summary data displayed on the main dashboard overview page.
+
+    ```typescript
+    @Injectable({ providedIn: 'root' })
+    export class DashboardService {
+      private readonly url = `${environment.api_url}/api/dashboard`;
+
+      constructor(private http: HttpClient) {}
+
+      /** Retrieve dashboard summary metrics (species count, battle totals, etc.). */
+      getDashboard(): Observable<DashboardDTO> {
+        return this.http.get<DashboardDTO>(this.url);
+      }
+    }
+    ```
+
+    | Method | HTTP | Endpoint |
+    |---|---|---|
+    | `getDashboard()` | GET | `/api/dashboard` |
+
+  </Tab>
+
+  <Tab title="UI Services">
+
+    UI services hold reactive state using `BehaviorSubject` and expose `Observable` streams that components subscribe to. None of them make HTTP requests.
+
+    ### AlertService
+
+    Manages a queue of toast notifications displayed globally by `AlertToastComponent`. Each alert is assigned a `crypto.randomUUID()` identifier and auto-dismissed after its `duration` (default **5 000 ms**).
+
+    ```typescript
+    export type AlertType = 'success' | 'warning' | 'error' | 'info';
+
+    export interface Alert {
+      id: string;
+      type: AlertType;
+      title: string;
+      message: string;
+      duration: number;
+    }
+
+    @Injectable({ providedIn: 'root' })
+    export class AlertService {
+
+      /** Observable stream of all currently active alerts. */
+      alerts$: Observable<Alert[]>;
+
+      /** Show a success toast. */
+      success(message: string, title?: string, duration?: number): void;
+
+      /** Show a warning toast. */
+      warning(message: string, title?: string, duration?: number): void;
+
+      /**
+       * Show an error toast.
+       * If `error` is an HttpErrorResponse with status 4xx, the API's
+       * `error.error.message` is appended to the displayed message.
+       */
+      error(message: string, title?: string, error?: any, duration?: number): void;
+
+      /** Show an info toast. */
+      info(message: string, title?: string, duration?: number): void;
+
+      /** Manually dismiss a toast by its UUID. */
+      dismiss(id: string): void;
+    }
+    ```
+
+    <Note>
+      Default titles are localised in Spanish: `'Éxito'`, `'Advertencia'`, `'Error'`, and `'Información'`. Pass an explicit `title` argument to override them.
+    </Note>
+
+    **Error enrichment** — when `error` is an `HttpErrorResponse` with a status in the `400–499` range and the body contains an `error.message` field, that message is concatenated to the displayed text automatically. This avoids repetitive error-parsing logic in every component.
+
+    ---
+
+    ### ThemeService
+
+    Persists and applies the active colour scheme (`'light' | 'dark'`). On construction it reads `localStorage.getItem('theme')` so the user's preference survives page reloads.
+
+    ```typescript
+    type Theme = 'light' | 'dark';
+
+    @Injectable({ providedIn: 'root' })
+    export class ThemeService {
+
+      /** Observable stream of the current theme value. */
+      theme$: Observable<Theme>;
+
+      /** Toggle between light and dark. */
+      toggleTheme(): void;
+
+      /**
+       * Apply a specific theme.
+       * Adds/removes the 'dark' class on <html> and persists to localStorage.
+       */
+      setTheme(theme: Theme): void;
+    }
+    ```
+
+    ---
+
+    ### SidebarService
+
+    Tracks three independent boolean states for the sidebar: **expanded** (desktop pinned-open), **mobile open** (overlay visible on small screens), and **hovered** (temporarily expanded while the cursor is over a collapsed sidebar).
+
+    ```typescript
+    @Injectable({ providedIn: 'root' })
+    export class SidebarService {
+
+      isExpanded$:   Observable<boolean>;  // desktop pinned state
+      isMobileOpen$: Observable<boolean>;  // mobile overlay state
+      isHovered$:    Observable<boolean>;  // hover-expand state
+
+      setExpanded(val: boolean): void;
+      toggleExpanded(): void;
+
+      setMobileOpen(val: boolean): void;
+      toggleMobileOpen(): void;
+
+      setHovered(val: boolean): void;
+    }
+    ```
+
+    `AppHeaderComponent` calls `toggleExpanded()` on desktop and `toggleMobileOpen()` on mobile, determined by `window.innerWidth >= 1280`.
+
+    ---
+
+    ### ModalService
+
+    Provides a simple open/close state for a single generic modal overlay. Components call `openModal()` / `closeModal()` imperatively and read `isOpen$` reactively (or `isOpen` synchronously).
+
+    ```typescript
+    @Injectable({ providedIn: 'root' })
+    export class ModalService {
+
+      /** Observable for the modal open state. */
+      isOpen$: Observable<boolean>;
+
+      /** Read the current state synchronously. */
+      get isOpen(): boolean;
+
+      openModal(): void;
+      closeModal(): void;
+      toggleModal(): void;
+    }
+    ```
+
+    <Tip>
+      For pages that need multiple independent modals, instantiate `ModalService` at the component level using a local provider (`providers: [ModalService]` in `@Component`) rather than relying on the root singleton.
+    </Tip>
+
+  </Tab>
+</Tabs>

@@ -1,0 +1,122 @@
+---
+title: "Galactic Tournament Frontend Architecture Overview"
+sidebarTitle: "Overview"
+description: "High-level guide to the Angular 21 SPA structure, lazy-loaded modules, routing tree, shared layout shell, and key project dependencies."
+---
+
+Galactic Tournament is a single-page application built with Angular 21. It follows a feature-module architecture where each domain area — species management, battles, and battle statistics — is isolated into its own lazy-loaded module, keeping the initial bundle lean. A shared layout shell, composed of a sidebar and header, wraps every authenticated page through the Angular router.
+
+## Application Bootstrap
+
+The app is bootstrapped with `ApplicationConfig` in `app.config.ts`, using Angular's standalone provider APIs. There is no `NgModule` at the root level — providers are registered directly via `provideRouter`, `provideHttpClient`, and `provideZoneChangeDetection`.
+
+```typescript
+// src/app/app.config.ts
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideZoneChangeDetection({ eventCoalescing: true }),
+    provideRouter(routes),
+    provideHttpClient(),
+  ],
+};
+```
+
+## Routing Tree
+
+All routes are declared under a single parent route that mounts `AppLayoutComponent` as the persistent shell. Child routes are either loaded eagerly (the dashboard overview) or lazily (the three feature modules).
+
+```typescript
+// src/app/app.routes.ts
+export const routes: Routes = [
+  {
+    path: '',
+    component: AppLayoutComponent,   // persistent shell
+    children: [
+      {
+        path: '',
+        component: OverviewComponent, // standalone, eager
+        pathMatch: 'full',
+        title: 'Dashboard',
+      },
+      {
+        path: 'species',
+        loadChildren: () =>
+          import('./modules/species/species.module').then((m) => m.SpeciesModule),
+        title: 'Gestión de Especies',
+      },
+      {
+        path: 'battles',
+        loadChildren: () =>
+          import('./modules/battle/battle.module').then((m) => m.BattleModule),
+        title: 'Combates',
+      },
+      {
+        path: 'battle-statistics',
+        loadChildren: () =>
+          import('./modules/battle-statistics/battle-statistics.module')
+            .then((m) => m.BattleStatisticsModule),
+        title: 'Battle Statistics',
+      },
+    ],
+  },
+];
+```
+
+## Module Hierarchy
+
+The diagram below shows how the application is structured from the root shell down to each feature module and its child routes.
+
+```
+AppLayoutComponent  (root shell — always rendered)
+├── /                   → OverviewComponent       (standalone, eager)
+├── /species            → SpeciesModule            (NgModule, lazy-loaded)
+│       ├── /species                (list view)
+│       └── /species/:id           (detail / edit view)
+├── /battles            → BattleModule             (NgModule, lazy-loaded)
+│       └── /battles               (start a battle, view result)
+└── /battle-statistics  → BattleStatisticsModule   (NgModule, lazy-loaded)
+        └── /battle-statistics/ranking  (species leaderboard)
+```
+
+<Note>
+  The `RankingComponent` inside `BattleStatisticsModule` is also declared as a standalone component. The module acts as a routing container while the component itself opts into the standalone APIs.
+</Note>
+
+## Shared Layout Shell
+
+`AppLayoutComponent` is the single entry point for every in-app page. It composes three building blocks and reacts to sidebar state via `SidebarService`:
+
+| Part | Selector | Role |
+|---|---|---|
+| Sidebar | `app-sidebar` | Primary navigation — links to Dashboard, Species, Battles, Rankings |
+| Header | `app-header` | Theme toggle, notification dropdown, user dropdown |
+| Backdrop | `app-backdrop` | Mobile overlay when the sidebar is open |
+| Router outlet | `<router-outlet>` | Renders the active child route |
+| Alert toast | `app-alert-toast` | Renders active notification toasts globally |
+
+The content area shifts its left margin dynamically depending on whether the sidebar is expanded (`xl:ml-[290px]`) or collapsed (`xl:ml-[90px]`), providing a smooth CSS transition driven by `SidebarService.isExpanded$`.
+
+## Standalone vs. NgModule
+
+The project uses both Angular paradigms deliberately:
+
+- **Standalone components** — `OverviewComponent`, `RankingComponent`, all layout and shared UI components. They use `imports: [...]` directly in the `@Component` decorator and require no declaring module.
+- **NgModules** — `SpeciesModule`, `BattleModule`, `BattleStatisticsModule`. These act as lazy-loading boundaries; Angular's router fetches each module's chunk only when the user navigates to that route for the first time.
+
+<Tip>
+  Because the three feature modules are loaded on demand, the main application bundle stays small. Each module's JavaScript chunk is downloaded and parsed only when a user first visits that route.
+</Tip>
+
+## Key Dependencies
+
+| Package | Version | Purpose |
+|---|---|---|
+| `@angular/core` | ^21.2.4 | Core Angular framework |
+| `@angular/material` | ^21.2.13 | Material Design component library |
+| `tailwindcss` | ^4.1.11 | Utility-first CSS framework |
+| `apexcharts` / `ng-apexcharts` | ^5.3.2 / ^2.0.4 | Interactive chart components |
+| `@fullcalendar/angular` | ^6.1.20 | Calendar UI widget |
+| `rxjs` | ~7.8.0 | Reactive programming / async streams |
+| `@amcharts/amcharts5` | ^5.13.5 | Advanced data visualisations |
+| `flatpickr` | ^4.6.13 | Lightweight date-picker |
+| `zone.js` | ~0.15.0 | Angular change-detection integration |

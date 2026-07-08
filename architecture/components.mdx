@@ -1,0 +1,260 @@
+---
+title: "Galactic Tournament Shared Components Reference"
+sidebarTitle: "Components"
+description: "Catalogue of every reusable Angular component: layout shell pieces, UI primitives, form controls, chart wrappers, and the SafeHtmlPipe utility pipe."
+---
+
+Galactic Tournament's shared component library lives entirely under `src/app/shared/`. Every component is standalone — each declares its own `imports` array rather than belonging to a shared `NgModule`. This makes them individually tree-shakeable and easy to pull into both eager and lazy-loaded contexts. The sections below group components by their role in the application.
+
+---
+
+## Layout Components
+
+The layout components form the persistent shell that surrounds every in-app page. They are composed inside `AppLayoutComponent`, which is the root shell mounted by the router.
+
+<CardGroup cols={2}>
+  <Card title="AppLayoutComponent" icon="layout-panel-left">
+    **Selector:** `app-layout`
+
+    **Path:** `shared/layout/app-layout/`
+
+    Root shell component. Renders `AppSidebarComponent`, `AppHeaderComponent`, `BackdropComponent`, and `AlertToastComponent` around a `<router-outlet>`. Injects `SidebarService` and exposes `isExpanded$`, `isHovered$`, and `isMobileOpen$` to the template so the content area can shift its left margin between `xl:ml-[290px]` (expanded) and `xl:ml-[90px]` (collapsed) with a CSS transition.
+  </Card>
+
+  <Card title="AppSidebarComponent" icon="sidebar-left">
+    **Selector:** `app-sidebar`
+
+    **Path:** `shared/layout/app-sidebar/`
+
+    Primary navigation sidebar. Declares a `navItems` array with four entries — **Dashboard** (`/`), **Especies** (`/species`), **Combates** (`/battles`), and **Ranking** (`/battle-statistics/ranking`) — each carrying an inline SVG icon string rendered through `SafeHtmlPipe`. Supports nested sub-items with animated height transitions via `subMenuHeights`. Reacts to `SidebarService` streams for expanded, mobile-open, and hovered states, and subscribes to `Router.events` to highlight the active route.
+  </Card>
+
+  <Card title="AppHeaderComponent" icon="layout-panel-top">
+    **Selector:** `app-header`
+
+    **Path:** `shared/layout/app-header/`
+
+    Top navigation bar. Embeds `ThemeToggleButtonComponent`, `NotificationDropdownComponent`, and `UserDropdownComponent`. The hamburger/toggle button calls `SidebarService.toggleExpanded()` on desktop (`window.innerWidth >= 1280`) and `SidebarService.toggleMobileOpen()` on smaller viewports.
+  </Card>
+
+  <Card title="SidebarWidgetComponent" icon="square-dashed">
+    **Selector:** `app-sidebar-widget`
+
+    **Path:** `shared/layout/app-sidebar/`
+
+    Optional widget slot rendered at the bottom of the sidebar. Use it to embed quick-action cards or upgrade prompts without modifying the sidebar's navigation list.
+  </Card>
+</CardGroup>
+
+---
+
+## UI Components
+
+Primitive building blocks used throughout feature modules and pages.
+
+<CardGroup cols={2}>
+  <Card title="BadgeComponent" icon="tag">
+    **Selector:** `app-badge`
+
+    **Path:** `shared/components/ui/badge/`
+
+    Inline status chip that accepts three inputs — `color`, `variant`, and `size` — and optionally renders `startIcon` / `endIcon` HTML strings via `SafeHtmlPipe`.
+
+    ```typescript
+    type BadgeColor   = 'primary' | 'success' | 'error'
+                      | 'warning' | 'info' | 'light' | 'dark';
+    type BadgeVariant = 'light' | 'solid';
+    type BadgeSize    = 'sm' | 'md';
+
+    @Input() color:   BadgeColor   = 'primary';
+    @Input() variant: BadgeVariant = 'light';
+    @Input() size:    BadgeSize    = 'md';
+    @Input() startIcon?: string;   // SVG / HTML string
+    @Input() endIcon?:   string;   // SVG / HTML string
+    ```
+
+    **Color tokens in `light` variant:**
+
+    | `color` | Background | Text |
+    |---|---|---|
+    | `primary` | `bg-brand-50` | `text-brand-500` |
+    | `success` | `bg-success-50` | `text-success-600` |
+    | `error` | `bg-error-50` | `text-error-600` |
+    | `warning` | `bg-warning-50` | `text-warning-600` |
+    | `info` | `bg-blue-light-50` | `text-blue-light-500` |
+    | `light` | `bg-gray-100` | `text-gray-700` |
+    | `dark` | `bg-gray-500` | `text-white` |
+  </Card>
+
+  <Card title="ModalComponent" icon="panel-top-open">
+    **Selector:** `app-modal`
+
+    **Path:** `shared/components/ui/modal/`
+
+    Generic overlay modal. Controlled externally via `@Input() isOpen: boolean` and emits `@Output() close: EventEmitter<void>` when the user clicks the backdrop or presses `Escape`.
+
+    ```typescript
+    @Input()  isOpen:          boolean = false;
+    @Input()  className:       string  = '';
+    @Input()  showCloseButton: boolean = true;
+    @Input()  isFullscreen:    boolean = false;
+    @Output() close = new EventEmitter<void>();
+    ```
+
+    Setting `isFullscreen = true` disables backdrop-click dismissal. The component manages `document.body.style.overflow` to prevent scroll bleed while the modal is open.
+  </Card>
+
+  <Card title="AlertToastComponent" icon="bell">
+    **Selector:** `app-alert-toast`
+
+    **Path:** `shared/components/common/alert-toast/`
+
+    Renders the live queue of notifications emitted by `AlertService`. On `ngOnInit` it subscribes to `AlertService.alerts$` and stores the array in `alerts: Alert[]`. The template iterates over that array, maps each `Alert.type` to a border/background colour class, and plays a `slideIn` CSS animation when a new toast appears.
+
+    Calling `dismiss(id)` delegates to `AlertService.dismiss(id)`, which removes the alert from the `BehaviorSubject` and causes the component to re-render automatically.
+
+    ```typescript
+    // Subscription pattern inside the component
+    ngOnInit(): void {
+      this.sub = this._alertService.alerts$.subscribe(alerts => {
+        this.alerts = alerts;
+      });
+    }
+
+    ngOnDestroy(): void {
+      this.sub.unsubscribe();
+    }
+
+    dismiss(id: string): void {
+      this._alertService.dismiss(id);
+    }
+    ```
+  </Card>
+
+  <Card title="ButtonComponent" icon="mouse-pointer-click">
+    **Selector:** `app-button`
+
+    **Path:** `shared/components/ui/button/`
+
+    Styled button primitive. Wraps a native `<button>` element with design-system classes, supporting multiple visual variants and sizes consistent with the rest of the UI component library.
+  </Card>
+
+  <Card title="DropdownComponent" icon="chevrons-up-down">
+    **Selector:** `app-dropdown`
+
+    **Path:** `shared/components/ui/dropdown/`
+
+    Generic dropdown wrapper. Pair it with `app-dropdown-item` children to build context menus, action menus, or select-like interactions. Manages open/closed state internally.
+  </Card>
+
+  <Card title="AvatarComponent / AvatarTextComponent" icon="user-circle">
+    **Selectors:** `app-avatar`, `app-avatar-text`
+
+    **Path:** `shared/components/ui/avatar/`
+
+    Two complementary avatar primitives. `AvatarComponent` renders an image-based circular avatar, while `AvatarTextComponent` renders an initials-based fallback. Both are used inside `UserDropdownComponent` in the header.
+  </Card>
+</CardGroup>
+
+---
+
+## Form Components
+
+Reusable form controls live in `shared/components/form/`. Each wraps a native HTML input or select with consistent labelling, validation state styling, and accessibility attributes.
+
+<CardGroup cols={3}>
+  <Card title="InputFieldComponent" icon="text-cursor-input">
+    **Path:** `shared/components/form/input/`
+
+    Standard single-line text input with label, hint, and error-state support.
+  </Card>
+
+  <Card title="TextAreaComponent" icon="align-left">
+    **Path:** `shared/components/form/form-elements/text-area-input/`
+
+    Multi-line text input with matching label and validation state styling.
+  </Card>
+
+  <Card title="SelectComponent" icon="list">
+    **Path:** `shared/components/form/select/`
+
+    Native `<select>` wrapper with design-system styling.
+  </Card>
+
+  <Card title="MultiSelectComponent" icon="layers">
+    **Path:** `shared/components/form/multi-select/`
+
+    Custom multi-select control for choosing multiple options from a list.
+  </Card>
+
+  <Card title="CheckboxComponent" icon="square-check">
+    **Path:** `shared/components/form/form-elements/checkbox-components/`
+
+    Styled checkbox with an accessible label.
+  </Card>
+
+  <Card title="RadioComponent" icon="circle-dot">
+    **Path:** `shared/components/form/form-elements/radio-buttons/`
+
+    Styled radio button group.
+  </Card>
+
+  <Card title="SwitchComponent" icon="toggle-left">
+    **Path:** `shared/components/form/form-elements/toggle-switch/`
+
+    Toggle switch (boolean on/off control).
+  </Card>
+</CardGroup>
+
+---
+
+## Chart Components
+
+Chart wrappers live in `shared/components/charts/` and integrate the `ng-apexcharts` library. They accept pre-built ApexCharts configuration objects as inputs and pass them directly to the underlying `apx-chart` element.
+
+<CardGroup cols={2}>
+  <Card title="BarChartOneComponent" icon="chart-bar">
+    **Path:** `shared/components/charts/bar/bar-chart-one/`
+
+    Wraps an ApexCharts bar chart. Used on the dashboard overview and battle statistics pages to visualise comparative species data.
+  </Card>
+
+  <Card title="LineChartOneComponent" icon="chart-line">
+    **Path:** `shared/components/charts/line/line-chart-one/`
+
+    Wraps an ApexCharts line chart. Suitable for time-series data such as battle activity over a date range.
+  </Card>
+</CardGroup>
+
+---
+
+## Utility Pipe
+
+### SafeHtmlPipe
+
+**Path:** `shared/pipe/safe-html.pipe.ts`
+
+**Pipe name:** `safeHtml`
+
+A thin wrapper around Angular's `DomSanitizer.bypassSecurityTrustHtml()`. It is used wherever inline SVG strings stored in component data need to be rendered safely into the DOM — most notably for the icon strings in `AppSidebarComponent` and the icon inputs of `BadgeComponent`.
+
+```typescript
+@Pipe({ name: 'safeHtml' })
+export class SafeHtmlPipe implements PipeTransform {
+  constructor(private sanitizer: DomSanitizer) {}
+
+  transform(value: string): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(value);
+  }
+}
+```
+
+**Usage in a template:**
+
+```html
+<span [innerHTML]="iconString | safeHtml"></span>
+```
+
+<Note>
+  Only pass trusted, application-controlled strings to `safeHtml`. Never pipe user-supplied content through this pipe, as it bypasses Angular's built-in XSS sanitisation.
+</Note>

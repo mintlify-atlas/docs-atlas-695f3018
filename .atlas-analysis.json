@@ -1,0 +1,73 @@
+{
+  "projectType": "frontend",
+  "projectName": "Galactic Tournament",
+  "projectDescription": "An Angular-based dashboard frontend for managing an intergalactic tournament — including species management, battle simulation, and ranking statistics.",
+  "theme": "palm",
+  "primaryColor": "#6C3CE1",
+  "lightColor": "#EDE9FF",
+  "darkColor": "#2D1B69",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "docker-deployment"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/dashboard",
+              "features/species",
+              "features/battles",
+              "features/ranking"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/services",
+              "architecture/components"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment",
+              "configuration/api-integration"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Species management with create, edit, and paginated listing",
+    "Battle simulation between two selected species with winner resolution",
+    "Random battle generation against the backend API",
+    "Victory ranking leaderboard with sortable table",
+    "Overview dashboard with total species count, top-3 ranking, and last battle",
+    "Angular Material table with sorting and pagination",
+    "Toast alert system for user feedback",
+    "Docker + Nginx deployment with runtime API URL injection",
+    "Dark/light theme toggle",
+    "Tailwind CSS v4 styling"
+  ],
+  "publicApiSurface": [
+    "GET /api/species/all — list all species (no pagination)",
+    "GET /api/species?page&size&name — paginated species list with optional name filter",
+    "GET /api/species/:id — get a single species by ID",
+    "POST /api/species — create a new species (SpecieRequest: name, powerLevel, specialAbility)",
+    "PUT /api/species/:id — update an existing species",
+    "POST /api/battles — start a battle (BattleRequest: fighterLeftId, fighterRightId) → BattleResult",
+    "POST /api/battles/random — start a random battle → BattleResult",
+    "GET /api/battle-statistics/ranking — get species victory ranking → RankingResponse[]",
+    "GET /api/dashboard — get dashboard summary (DashboardDTO: totalSpecies, top3Ranking, lastBattle)"
+  ]
+}

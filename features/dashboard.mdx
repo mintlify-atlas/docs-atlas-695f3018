@@ -1,0 +1,195 @@
+---
+title: "Galactic Tournament Dashboard — Mission Overview"
+sidebarTitle: "Dashboard"
+description: "Explore the Galactic Tournament overview dashboard: total species count, top-3 ranking with medal badges, and the most recent battle result."
+---
+
+The Dashboard Overview is the landing page of the Galactic Tournament application, accessible at the root route `/`. On load it makes a single API call to `GET /api/dashboard` and surfaces three widgets side-by-side: a species counter card, a top-3 ranking leaderboard, and a last-battle result panel. All widgets share the same loading and error lifecycle so the page either renders completely or shows a clear failure message.
+
+## API Endpoint
+
+```
+GET /api/dashboard
+```
+
+**Base URL:** `https://galactic-tournament-app-production.up.railway.app`
+
+The endpoint returns a single `DashboardDTO` object combining species statistics, ranking data, and the latest battle in one round-trip.
+
+## Data Model
+
+```typescript
+export interface DashboardDTO {
+  totalSpecies: number;
+  top3Ranking: RankingResponse[];
+  lastBattle: BattleResult;
+}
+```
+
+<ResponseField name="totalSpecies" type="number" required>
+  The total number of intergalactic species currently registered in the system.
+</ResponseField>
+
+<ResponseField name="top3Ranking" type="RankingResponse[]" required>
+  An ordered array of the top three species by victory count, used to populate the ranking widget.
+
+  <Expandable title="RankingResponse fields">
+    <ResponseField name="specieId" type="number" required>
+      Unique identifier of the species.
+    </ResponseField>
+    <ResponseField name="species" type="Specie" required>
+      Full species object containing `id`, `name`, `powerLevel`, `specialAbility`, and `createdAt`.
+    </ResponseField>
+    <ResponseField name="victories" type="number" required>
+      Total number of battles won by this species.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="lastBattle" type="BattleResult" required>
+  The most recently recorded battle, including both fighters and the declared winner.
+
+  <Expandable title="BattleResult fields">
+    <ResponseField name="id" type="number" required>
+      Unique battle identifier.
+    </ResponseField>
+    <ResponseField name="fighterLeft" type="Specie" required>
+      The species placed on the left side of the arena.
+    </ResponseField>
+    <ResponseField name="fighterRight" type="Specie" required>
+      The species placed on the right side of the arena.
+    </ResponseField>
+    <ResponseField name="winner" type="Specie" required>
+      The species that won the battle. Its `id` is compared against both fighters to apply winner highlighting.
+    </ResponseField>
+    <ResponseField name="battleDate" type="Date" required>
+      ISO timestamp of when the battle took place, formatted as `dd/MM/yyyy HH:mm` in the UI.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example API Response
+
+```json
+{
+  "totalSpecies": 42,
+  "top3Ranking": [
+    {
+      "specieId": 7,
+      "species": {
+        "id": 7,
+        "name": "Sayajin",
+        "powerLevel": 9000,
+        "specialAbility": "Super Sayajin Transformation",
+        "createdAt": "2024-01-15T10:30:00"
+      },
+      "victories": 18
+    },
+    {
+      "specieId": 3,
+      "species": {
+        "id": 3,
+        "name": "Namekian",
+        "powerLevel": 7500,
+        "specialAbility": "Regeneration",
+        "createdAt": "2024-01-10T09:00:00"
+      },
+      "victories": 14
+    },
+    {
+      "specieId": 11,
+      "species": {
+        "id": 11,
+        "name": "Arcosian",
+        "powerLevel": 8800,
+        "specialAbility": "Power Suppression",
+        "createdAt": "2024-02-01T14:15:00"
+      },
+      "victories": 11
+    }
+  ],
+  "lastBattle": {
+    "id": 204,
+    "fighterLeft": {
+      "id": 7,
+      "name": "Sayajin",
+      "powerLevel": 9000,
+      "specialAbility": "Super Sayajin Transformation",
+      "createdAt": "2024-01-15T10:30:00"
+    },
+    "fighterRight": {
+      "id": 11,
+      "name": "Arcosian",
+      "powerLevel": 8800,
+      "specialAbility": "Power Suppression",
+      "createdAt": "2024-02-01T14:15:00"
+    },
+    "winner": {
+      "id": 7,
+      "name": "Sayajin",
+      "powerLevel": 9000,
+      "specialAbility": "Super Sayajin Transformation",
+      "createdAt": "2024-01-15T10:30:00"
+    },
+    "battleDate": "2024-06-12T21:45:00"
+  }
+}
+```
+
+## Dashboard Widgets
+
+### Total Species Card
+
+A compact card in the left column displays the `totalSpecies` value as a large headline number alongside a group icon. It provides a quick census of how many species have been registered across the galaxy at any given moment.
+
+### Top-3 Ranking
+
+The ranking widget occupies the right column and iterates over `top3Ranking`. Each entry is displayed as a row with:
+
+| Position | Medal | Colour class |
+|----------|-------|--------------|
+| 1st | 🥇 | `text-yellow-500` |
+| 2nd | 🥈 | `text-gray-400` |
+| 3rd | 🥉 | `text-amber-600` |
+
+Each row shows the species name, power level, and victory count. When `top3Ranking` is empty the widget renders a "No ranking data available" placeholder instead.
+
+<Tip>
+  Medal labels and colour classes are resolved by the `getMedalLabel(index)` and `getMedalClass(index)` methods in `OverviewComponent`. Any index beyond 2 falls back to a generic `#N` label with `text-gray-500`.
+</Tip>
+
+### Last Battle Result
+
+A full-width panel below the two cards shows the most recent fight. Both fighters are displayed side-by-side with a central **VS** separator. After the result is available the winning fighter's panel is highlighted in green (`bg-green-50`) and receives a **WINNER** badge, while the losing fighter keeps a neutral grey background.
+
+When `lastBattle` is `null` (no battles have been recorded yet) the panel renders a "No battles recorded yet" placeholder.
+
+The battle date is formatted using Angular's `DatePipe` as `dd/MM/yyyy HH:mm`.
+
+## Loading & Error States
+
+The `OverviewComponent` exposes two boolean flags driven by the `DashboardService` observable:
+
+| Flag | Initial value | Meaning |
+|------|---------------|---------|
+| `loading` | `true` | A full-page spinner is shown while the HTTP request is in flight. |
+| `error` | `false` | When the request fails, an error banner replaces all widgets. |
+
+```typescript
+ngOnInit(): void {
+  this.dashboardService.getDashboard().subscribe({
+    next: (data) => {
+      this.dashboard = data;
+      this.loading = false;
+    },
+    error: () => {
+      this.error = true;
+      this.loading = false;
+    },
+  });
+}
+```
+
+<Note>
+  The dashboard widgets are only rendered when `loading` is `false`, `error` is `false`, and `dashboard` is non-null. There is no retry button — refreshing the browser page re-triggers the `ngOnInit` call.
+</Note>
